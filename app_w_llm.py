@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from fda_data import get_fda_data, DISPLAY_COLUMNS
+import os
 from llm_utils import display_section_with_ai_summary, run_llm_analysis
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -40,6 +41,16 @@ def display_device_view(results, query):
         if key in results:
             display_section_with_ai_summary(title, results[key], key, query, "device")
 
+def add_about_button():
+    """Add an About button that shows the content of about.md in a modal when clicked"""
+    if os.path.exists("about.md"):
+        with open("about.md", "r") as f:
+            about_content = f.read()
+    with st.expander("About FDA Medical Device Intelligence Demo", expanded=False):
+        st.markdown(about_content)
+
+
+
 def display_manufacturer_view(results, query):
     """Display manufacturer-centric view of FDA data with AI summaries"""
     st.header("📈 Recent FDA Activity for this Manufacturer")
@@ -63,6 +74,8 @@ def main():
     """Main application entry point"""
     st.set_page_config(page_title="FDA Device Intelligence Demo", layout="wide")
     st.title("🔍 FDA Medical Device Intelligence Center")
+    # add about button to the top right
+    add_about_button()
     st.subheader("Explore News, Events, and Regulatory Activities")
     
     # Add demo app disclaimer

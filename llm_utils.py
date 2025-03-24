@@ -28,68 +28,80 @@ def prepare_data_for_llm(df, source_type):
 
 def create_system_prompt():
     """Create the system prompt for the LLM"""
-    return """You are an FDA regulatory intelligence expert analyzing recent medical device news and events for healthcare professionals. 
-    Your task is to provide insightful analysis of FDA data that highlights important trends, potential safety concerns, and regulatory implications.
-    Your analysis should:
-    1. Highlight the most recent and significant developments
-    2. Identify patterns or emerging trends
-    3. Provide regulatory context and implications
-    4. Include at least one actionable insight for stakeholders
+    return """You are an FDA regulatory intelligence expert analyzing medical device data for a demo application.
+
+    IMPORTANT CONTEXT ABOUT THIS DEMO APP:
+    - This is a demonstration app that pulls sample data from the openFDA API
+    - You are only seeing a small sample of data (typically 5 records), NOT the complete dataset
+    - The samples shown may be recent but are not necessarily representative of all data
+    - Your analysis should acknowledge these limitations while still providing useful insights
+    - The purpose is to demonstrate what a more complete analysis could look like with more comprehensive data
     
-    Be specific, insightful, and concise (4-5 sentences). Use precise dates, device types, and regulatory statuses where available."""
+    Your task is to provide insightful analysis of the FDA data sample that highlights potential trends, safety considerations, and regulatory implications.
+    Your analysis should:
+    1. Acknowledge the limited sample nature of the data
+    2. Identify any notable patterns in the sample
+    3. Provide regulatory context and potential implications
+    4. Suggest what a more comprehensive analysis might reveal
+    
+    Be specific about the sample data while being clear about its limitations. Use precise dates, device types, and regulatory statuses where available."""
 
 def generate_llm_prompt(data_json, source_type, query, query_type):
     """Generate the main prompt for the LLM based on the data and query type"""
     # Different prompt templates based on query type
     manufacturer_templates = {
-        "510K": f"Analyze these recent 510(k) clearance submissions from manufacturer '{query}'. Focus on: product portfolio strategy, technology trends across their submissions, regulatory approval patterns, and competitive positioning in the market.",
-        "PMA": f"Review these recent Pre-Market Approval submissions from manufacturer '{query}'. Analyze: their high-risk device strategy, approval timelines compared to industry averages, conditions of approval patterns, and innovation trends in their Class III portfolio.",
-        "EVENT": f"Evaluate these recent adverse events reported for '{query}' devices. Identify: recurring device issues across their product lines, severity trends, potential quality system implications, and how these events compare to previous reporting periods.",
-        "RECALL": f"Assess these recent recalls issued by '{query}'. Analyze: quality system implications, impact on their product portfolio, recall classification severity patterns, and potential regulatory enforcement risk for the manufacturer.",
-        "UDI": f"Analyze these Unique Device Identifier (UDI) entries for manufacturer '{query}'. Focus on: product line diversity, recent additions to their portfolio, device risk classifications, and market positioning."
+        "510K": f"Analyze this sample of 510(k) clearance submissions from manufacturer '{query}'. Focus on: any visible patterns in their product strategy, types of submissions, and regulatory approaches.",
+        "PMA": f"Review this sample of Pre-Market Approval submissions from manufacturer '{query}'. Consider: their high-risk device portfolio, approval pathways, and potential innovation trends.",
+        "EVENT": f"Evaluate this sample of adverse events reported for '{query}' devices. Look for: any recurring issues, severity patterns, and potential quality considerations visible in this limited sample.",
+        "RECALL": f"Assess this sample of recalls issued by '{query}'. Consider: the nature of these specific recalls, their severity classifications, and what they might suggest about quality systems.",
+        "UDI": f"Analyze this sample of Unique Device Identifier (UDI) entries for manufacturer '{query}'. Look at: the types of products represented and their characteristics within this limited sample."
     }
     
     device_templates = {
-        "510K": f"Analyze these recent 510(k) clearance submissions related to '{query}' devices. Focus on: technological innovations, predicate device patterns, regulatory requirements, and competitive landscape for this device type.",
-        "PMA": f"Review these recent Pre-Market Approval submissions for '{query}' devices. Analyze: clinical requirements, safety and efficacy standards, approval conditions, and technological advancements for this specific device category.",
-        "CLASSIFICATION": f"Examine this FDA device classification data for '{query}'. Analyze: risk classification assignments, special controls, applicable standards, and regulatory requirements specific to this device type.",
-        "UDI": f"Analyze these Unique Device Identifier (UDI) entries for '{query}' devices. Focus on: variations between models, technological features, competitive positioning, and market distribution.",
-        "EVENT": f"Evaluate these recent adverse event reports related to '{query}' devices. Identify: common failure modes, patient impact patterns, usage environment factors, and potential design or labeling implications.",
-        "RECALL": f"Assess these recent recall records related to '{query}' devices. Analyze: common defects or issues, design implications, user impact, and corrective actions taken across manufacturers."
+        "510K": f"Analyze this sample of 510(k) clearance submissions related to '{query}' devices. Consider: the regulatory pathways, technologies, and manufacturers represented in this limited sample.",
+        "PMA": f"Review this sample of Pre-Market Approval submissions for '{query}' devices. Consider: the approval requirements, conditions, and technological features visible in this limited dataset.",
+        "CLASSIFICATION": f"Examine this sample of FDA device classification data for '{query}'. Consider: the risk classifications, regulatory requirements, and product characteristics shown.",
+        "UDI": f"Analyze this sample of Unique Device Identifier (UDI) entries for '{query}' devices. Consider: the variations, features, and manufacturers represented in this limited sample.",
+        "EVENT": f"Evaluate this sample of adverse event reports related to '{query}' devices. Look for: any patterns in failure modes, patient impacts, or reporting sources visible in this limited dataset.",
+        "RECALL": f"Assess this sample of recall records related to '{query}' devices. Consider: the types of issues, affected manufacturers, and corrective actions represented in this limited dataset."
     }
     
     if query_type == "manufacturer":
         prompt_templates = manufacturer_templates
-        base_prompt = prompt_templates.get(source_type, f"Analyze this recent FDA data for manufacturer '{query}'. What are the key trends and implications?")
+        base_prompt = prompt_templates.get(source_type, f"Analyze this sample of FDA data for manufacturer '{query}'. Consider what patterns might be visible in this limited dataset.")
     else:  # device
         prompt_templates = device_templates
-        base_prompt = prompt_templates.get(source_type, f"Analyze this recent FDA data for device type '{query}'. What are the key trends and implications?")
+        base_prompt = prompt_templates.get(source_type, f"Analyze this sample of FDA data for device type '{query}'. Consider what patterns might be visible in this limited dataset.")
     
-    # Additional context based on query type
+    # Demo app context
+    demo_context = """DEMO APP CONTEXT: This is a demonstration application that pulls random samples from the openFDA API. The sample data shown may not be representative of all relevant records and may not necessarily show the most recent data. Your analysis should acknowledge these limitations while still providing insights about what patterns a more comprehensive analysis might reveal."""
+    
+    # Query-type specific context
     if query_type == "manufacturer":
-        context = f"""Context: This analysis is focused on the manufacturer '{query}' and their regulatory activities, quality performance, and product portfolio. Consider trends specific to this company versus industry norms."""
+        specific_context = f"""You are examining a small sample of data related to manufacturer '{query}'. While not comprehensive, this sample provides a glimpse into their regulatory activities, product issues, and portfolio characteristics."""
     else:  # device
-        context = f"""Context: This analysis is focused on the device category '{query}' across different manufacturers. Consider technological trends, safety patterns, and regulatory approaches specific to this device type."""
+        specific_context = f"""You are examining a small sample of data related to device type '{query}'. While not comprehensive, this sample provides a glimpse into the regulatory landscape, safety patterns, and characteristics of this device category."""
     
     prompt = f"""{base_prompt}
 
-    {context}
+    {demo_context}
+
+    {specific_context}
 
     Data details:
     - Total records found: {data_json.get('num_total_records', 0)}
-    - Sample size analyzed: {data_json.get('num_sample_records', 0)}
-    - This data represents the most recent FDA information available
+    - Sample size shown: {data_json.get('num_sample_records', 0)} (IMPORTANT: This is just a sample)
 
     Sample data:
     {json.dumps(data_json.get('sample_records', []), indent=2)}
 
     Reasoning steps:
-    1. Identify the most recent and significant entries in the data
-    2. Look for patterns or trends specific to this {query_type}
-    3. Consider regulatory implications for {query_type}-specific stakeholders
-    4. Determine any actionable insights or recommendations relevant to this {query_type}
+    1. Identify any notable patterns in this limited sample
+    2. Consider what these specific records might suggest about {query_type}-specific trends
+    3. Acknowledge data limitations while still providing useful insights
+    4. Suggest what a more comprehensive analysis might reveal
 
-    Provide a concise but detailed analysis that would be valuable to a regulatory professional tracking developments for this {query_type}: '{query}'.
+    Provide an analysis that acknowledges the demo nature of this app while still offering valuable insights about the visible patterns in this sample for '{query}'.
     """
     return prompt
 
