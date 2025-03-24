@@ -38,65 +38,62 @@ def create_system_prompt():
     
     Be specific, insightful, and concise (4-5 sentences). Use precise dates, device types, and regulatory statuses where available."""
 
-def generate_llm_prompt(data_json, source_type, query):
-    """Generate the main prompt for the LLM based on the data"""
-    prompt_templates = {
-        "510K": f"Analyze these recent 510(k) clearance submissions related to '{query}'. Focus on: timing patterns, novel technologies, significant regulatory decisions, and implications for market access or competition.",
-        "PMA": f"Review these recent Pre-Market Approval submissions related to '{query}'. Analyze: approval timelines, innovative technologies, conditions of approval, and potential market impact of these Class III devices.",
-        "CLASSIFICATION": f"Examine this FDA device classification data for '{query}'. Analyze: risk classification patterns, regulatory requirements, predicate devices, and market positioning implications.",
-        "UDI": f"Analyze these Unique Device Identifier (UDI) entries for '{query}'. Focus on: product diversity, verification status, key features, and supply chain implications.",
-        "EVENT": f"Evaluate these recent adverse event reports related to '{query}'. Identify: emerging safety signals, severity patterns, reported malfunctions, potential root causes, and implications for risk management.",
-        "RECALL": f"Assess these recent recall records related to '{query}'. Analyze: recall classification severity, root causes, affected units, market impact, and necessary compliance actions."
+def generate_llm_prompt(data_json, source_type, query, query_type):
+    """Generate the main prompt for the LLM based on the data and query type"""
+    # Different prompt templates based on query type
+    manufacturer_templates = {
+        "510K": f"Analyze these recent 510(k) clearance submissions from manufacturer '{query}'. Focus on: product portfolio strategy, technology trends across their submissions, regulatory approval patterns, and competitive positioning in the market.",
+        "PMA": f"Review these recent Pre-Market Approval submissions from manufacturer '{query}'. Analyze: their high-risk device strategy, approval timelines compared to industry averages, conditions of approval patterns, and innovation trends in their Class III portfolio.",
+        "EVENT": f"Evaluate these recent adverse events reported for '{query}' devices. Identify: recurring device issues across their product lines, severity trends, potential quality system implications, and how these events compare to previous reporting periods.",
+        "RECALL": f"Assess these recent recalls issued by '{query}'. Analyze: quality system implications, impact on their product portfolio, recall classification severity patterns, and potential regulatory enforcement risk for the manufacturer.",
+        "UDI": f"Analyze these Unique Device Identifier (UDI) entries for manufacturer '{query}'. Focus on: product line diversity, recent additions to their portfolio, device risk classifications, and market positioning."
     }
     
-    base_prompt = prompt_templates.get(source_type, f"Analyze this recent FDA data related to '{query}'. What are the key trends and implications?")
+    device_templates = {
+        "510K": f"Analyze these recent 510(k) clearance submissions related to '{query}' devices. Focus on: technological innovations, predicate device patterns, regulatory requirements, and competitive landscape for this device type.",
+        "PMA": f"Review these recent Pre-Market Approval submissions for '{query}' devices. Analyze: clinical requirements, safety and efficacy standards, approval conditions, and technological advancements for this specific device category.",
+        "CLASSIFICATION": f"Examine this FDA device classification data for '{query}'. Analyze: risk classification assignments, special controls, applicable standards, and regulatory requirements specific to this device type.",
+        "UDI": f"Analyze these Unique Device Identifier (UDI) entries for '{query}' devices. Focus on: variations between models, technological features, competitive positioning, and market distribution.",
+        "EVENT": f"Evaluate these recent adverse event reports related to '{query}' devices. Identify: common failure modes, patient impact patterns, usage environment factors, and potential design or labeling implications.",
+        "RECALL": f"Assess these recent recall records related to '{query}' devices. Analyze: common defects or issues, design implications, user impact, and corrective actions taken across manufacturers."
+    }
+    
+    if query_type == "manufacturer":
+        prompt_templates = manufacturer_templates
+        base_prompt = prompt_templates.get(source_type, f"Analyze this recent FDA data for manufacturer '{query}'. What are the key trends and implications?")
+    else:  # device
+        prompt_templates = device_templates
+        base_prompt = prompt_templates.get(source_type, f"Analyze this recent FDA data for device type '{query}'. What are the key trends and implications?")
+    
+    # Additional context based on query type
+    if query_type == "manufacturer":
+        context = f"""Context: This analysis is focused on the manufacturer '{query}' and their regulatory activities, quality performance, and product portfolio. Consider trends specific to this company versus industry norms."""
+    else:  # device
+        context = f"""Context: This analysis is focused on the device category '{query}' across different manufacturers. Consider technological trends, safety patterns, and regulatory approaches specific to this device type."""
     
     prompt = f"""{base_prompt}
 
-Data details:
-- Total records found: {data_json.get('num_total_records', 0)}
-- Sample size analyzed: {data_json.get('num_sample_records', 0)}
-- This data represents the most recent FDA information available
+    {context}
 
-Sample data:
-{json.dumps(data_json.get('sample_records', []), indent=2)}
+    Data details:
+    - Total records found: {data_json.get('num_total_records', 0)}
+    - Sample size analyzed: {data_json.get('num_sample_records', 0)}
+    - This data represents the most recent FDA information available
 
-Reasoning steps:
-1. Identify the most recent and significant entries in the data
-2. Look for patterns or trends across multiple records
-3. Consider regulatory implications for stakeholders
-4. Determine any actionable insights or recommendations
+    Sample data:
+    {json.dumps(data_json.get('sample_records', []), indent=2)}
 
-Provide a concise but detailed analysis that would be valuable to a regulatory professional tracking developments for '{query}'.
-"""
+    Reasoning steps:
+    1. Identify the most recent and significant entries in the data
+    2. Look for patterns or trends specific to this {query_type}
+    3. Consider regulatory implications for {query_type}-specific stakeholders
+    4. Determine any actionable insights or recommendations relevant to this {query_type}
+
+    Provide a concise but detailed analysis that would be valuable to a regulatory professional tracking developments for this {query_type}: '{query}'.
+    """
     return prompt
 
-def display_section_with_ai_summary(title, df, source, query):
-    """Display a section with AI summary and data in an expandable container"""
-    st.subheader(title)
-    
-    if not df.empty:
-        # Generate and display AI summary
-        with st.spinner("Analyzing recent data..."):
-            summary = run_llm_analysis(df, source, query)
-            
-        st.info(f"**Key Insights**: {summary}")
-        
-        # Display data with appropriate columns in an expander
-        with st.expander("View Detailed Data"):
-            cols = DISPLAY_COLUMNS.get(source, [])
-            if cols:
-                existing_cols = [col for col in cols if col in df.columns]
-                if existing_cols:
-                    st.dataframe(df[existing_cols])
-                else:
-                    st.dataframe(df)
-            else:
-                st.dataframe(df)
-    else:
-        st.info(f"No recent data found for {title}.")
-
-def run_llm_analysis(df, source_type, query, custom_prompt=None):
+def run_llm_analysis(df, source_type, query, query_type="device", custom_prompt=None):
     """Process data with LLM and return the generated summary"""
     try:
         # Check if API key is configured
@@ -115,7 +112,7 @@ def run_llm_analysis(df, source_type, query, custom_prompt=None):
             # Prepare data and prompts
             data_json = prepare_data_for_llm(df, source_type)
             system_instructions = create_system_prompt()
-            prompt = generate_llm_prompt(data_json, source_type, query)
+            prompt = generate_llm_prompt(data_json, source_type, query, query_type)
             prompt = f"{system_instructions}\n\n{prompt}"
         
         # Generate content
@@ -125,3 +122,28 @@ def run_llm_analysis(df, source_type, query, custom_prompt=None):
         return response.text.strip()
     except Exception as e:
         return f"Error generating summary: {str(e)}"
+
+def display_section_with_ai_summary(title, df, source, query, query_type):
+    """Display a section with AI summary and data in an expandable container"""
+    st.subheader(title)
+    
+    if not df.empty:
+        # Generate and display AI summary
+        with st.spinner("Analyzing recent data..."):
+            summary = run_llm_analysis(df, source, query, query_type)
+            
+        st.info(f"**Key Insights**: {summary}")
+        
+        # Display data with appropriate columns in an expander
+        with st.expander("View Detailed Data"):
+            cols = DISPLAY_COLUMNS.get(source, [])
+            if cols:
+                existing_cols = [col for col in cols if col in df.columns]
+                if existing_cols:
+                    st.dataframe(df[existing_cols])
+                else:
+                    st.dataframe(df)
+            else:
+                st.dataframe(df)
+    else:
+        st.info(f"No recent data found for {title}.")
