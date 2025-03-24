@@ -10,8 +10,8 @@ def prepare_data_for_llm(df, source_type):
     if df.empty:
         return {}
     
-    # Truncate dataframe to first 5 rows to avoid overwhelming the LLM
-    df_sample = df.head(5).copy()
+    # Truncate dataframe to first 25 rows to provide more data to the LLM
+    df_sample = df.head(25).copy()
     
     # Convert to dict for JSON serialization
     records = df_sample.to_dict(orient='records')
@@ -32,7 +32,7 @@ def create_system_prompt():
 
     IMPORTANT CONTEXT ABOUT THIS DEMO APP:
     - This is a demonstration app that pulls sample data from the openFDA API
-    - You are only seeing a small sample of data (typically 5 records), NOT the complete dataset
+    - You are only seeing a sample of data (typically 25 records), NOT the complete dataset
     - The samples shown may be recent but are not necessarily representative of all data
     - Your analysis should acknowledge these limitations while still providing useful insights
     - The purpose is to demonstrate what a more complete analysis could look like with more comprehensive data
