@@ -74,6 +74,8 @@ def main():
     """Main application entry point"""
     st.set_page_config(page_title="FDA Device Intelligence Demo", layout="wide")
     st.title("🔍 FDA Medical Device Intelligence Center")
+    st.caption("""Demo developed by Dr. Sidd Nambiar, Sr. Lead Scientist at Booz Allen Hamilton.  
+                  Contact: nambiar_siddhartha@bah.com""")
     # add about button to the top right
     add_about_button()
     st.subheader("Explore News, Events, and Regulatory Activities")

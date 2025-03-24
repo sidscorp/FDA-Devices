@@ -98,7 +98,7 @@ def run_llm_analysis(df, source_type, query, query_type="device", custom_prompt=
             prompt = f"{system_instructions}\n\n{prompt}"
         
         # Generate content
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.0-flash")
         response = model.generate_content(prompt)
         
         return response.text.strip()
