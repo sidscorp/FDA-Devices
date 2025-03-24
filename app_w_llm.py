@@ -22,18 +22,18 @@ def determine_query_type(query):
 
 def display_device_view(results, query):
     """Display device-centric view of FDA data with AI summaries"""
-    st.header("🔍 Device-Centric View")
+    st.header("📊 Recent FDA Activity for this Device")
     if not results:
-        st.write("No device-related data found.")
+        st.write("No recent device-related data found.")
         return
         
     sections = {
-        "510K": "📄 Recent 510(k) Submissions",
+        "EVENT": "⚠️ Recent Adverse Events",
+        "RECALL": "🚨 Recent Recalls",
+        "510K": "📄 Latest 510(k) Submissions",
         "PMA": "📄 Recent PMA Submissions",
-        "CLASSIFICATION": "🧪 Classification Info",
-        "UDI": "🔗 UDI Information",
-        "EVENT": "⚠️ Adverse Events",
-        "RECALL": "🚨 Recalls"
+        "CLASSIFICATION": "🧪 Regulatory Classification",
+        "UDI": "🔗 UDI Database Entries"
     }
     
     for key, title in sections.items():
@@ -42,17 +42,17 @@ def display_device_view(results, query):
 
 def display_manufacturer_view(results, query):
     """Display manufacturer-centric view of FDA data with AI summaries"""
-    st.header("🏭 Manufacturer-Centric View")
+    st.header("📈 Recent FDA Activity for this Manufacturer")
     if not results:
-        st.write("No manufacturer-related data found.")
+        st.write("No recent manufacturer-related data found.")
         return
         
     sections = {
         "RECALL": "🚨 Recent Recalls",
-        "EVENT": "⚠️ Adverse Events",
-        "510K": "📄 510(k) Submissions",
-        "PMA": "📄 PMA Submissions",
-        "UDI": "🔗 UDI Entries"
+        "EVENT": "⚠️ Recent Adverse Events",
+        "510K": "📄 Latest 510(k) Submissions",
+        "PMA": "📄 Recent PMA Submissions",
+        "UDI": "🔗 UDI Database Entries"
     }
     
     for key, title in sections.items():
@@ -61,19 +61,20 @@ def display_manufacturer_view(results, query):
 
 def main():
     """Main application entry point"""
-    st.set_page_config(page_title="FDA Device Explorer", layout="wide")
-    st.title("🧠 FDA Device Explorer (AI-Powered Single View)")
+    st.set_page_config(page_title="FDA Device Intelligence", layout="wide")
+    st.title("🔍 FDA Medical Device Intelligence Center")
+    st.subheader("Explore Recent News, Events, and Regulatory Activities")
     
-    query = st.text_input("Enter search term (device or manufacturer)", 
-                          placeholder="e.g. Medtronic, pacemaker")
+    query = st.text_input("Enter device name or manufacturer", 
+                         placeholder="e.g. Medtronic, pacemaker, insulin pump")
 
     if query:
-        with st.spinner("Determining query type..."):
+        with st.spinner("Analyzing query..."):
             query_type = determine_query_type(query)
             
-        st.write(f"Query detected as: **{query_type.title()}**")
+        st.info(f"Retrieving recent FDA updates for this {query_type}: **{query}**")
             
-        with st.spinner("Crunching data from FDA..."):
+        with st.spinner("Gathering recent FDA data..."):
             results = cached_get_fda_data(query)
         
         # Only display the relevant view
@@ -83,7 +84,8 @@ def main():
             display_manufacturer_view(results.get("manufacturer"), query)
 
         # Debug information (optional)
-        with st.expander("Show DataFrames Info"):
+        with st.expander("Developer Information"):
+            st.write("Data structure information")
             for view, tables in results.items():
                 if view == query_type:
                     st.write(f"=== {view.upper()} VIEW ===")
