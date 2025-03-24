@@ -61,11 +61,8 @@ Provide a concise, informative summary (3-4 sentences) that highlights the most 
 """
     return prompt
 
-def run_llm_analysis(df, source_type, query):
+def run_llm_analysis(df, source_type, query, custom_prompt=None):
     """Process data with LLM and return the generated summary"""
-    if df.empty:
-        return "No data available to analyze."
-    
     try:
         # Check if API key is configured
         if not hasattr(genai, 'configured') or not genai.configured:
@@ -76,21 +73,24 @@ def run_llm_analysis(df, source_type, query):
             else:
                 return "API key not configured. Unable to generate summary."
         
-        # Prepare data and prompts
-        data_json = prepare_data_for_llm(df, source_type)
-        system_instructions = create_system_prompt()
-        user_prompt = generate_llm_prompt(data_json, source_type, query)
-        
-        # Combine system and user prompt for Gemini
-        combined_prompt = f"{system_instructions}\n\n{user_prompt}"
+        # Use custom prompt if provided
+        if custom_prompt:
+            prompt = custom_prompt
+        else:
+            # Prepare data and prompts
+            data_json = prepare_data_for_llm(df, source_type)
+            system_instructions = create_system_prompt()
+            prompt = generate_llm_prompt(data_json, source_type, query)
+            prompt = f"{system_instructions}\n\n{prompt}"
         
         # Generate content
         model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(combined_prompt)
+        response = model.generate_content(prompt)
         
         return response.text.strip()
     except Exception as e:
         return f"Error generating summary: {str(e)}"
+        
 
 def display_section_with_ai_summary(title, df, source, query):
     """Display a section with AI summary and data"""
