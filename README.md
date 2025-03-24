@@ -1,5 +1,7 @@
 # 🧠 FDA Device Explorer
 
+> **⚠️ DEVELOPMENT ONLY**: This project is in active development and not ready for production use.
+
 This Streamlit app lets you search FDA device/manufacturer data and see results in both device-centric and manufacturer-centric views.
 
 ## 🚀 How to Run
