@@ -5,7 +5,7 @@ import os
 from llm_utils import display_section_with_ai_summary, run_llm_analysis
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def cached_get_fda_data(query, limit=100):
+def cached_get_fda_data(query, limit=20):
     """Cached wrapper for the FDA data retrieval function"""
     return get_fda_data(query, limit)
 
@@ -22,7 +22,7 @@ def determine_query_type(query):
         return "device"
 
 def display_device_view(results, query):
-    """Display device-centric view of FDA data with AI summaries"""
+    """Display device-centric view of FDA data with AI summaries in side-by-side layout"""
     st.header("📊 Recent FDA Activity for this Device")
     if not results:
         st.write("No recent device-related data found.")
@@ -37,9 +37,26 @@ def display_device_view(results, query):
         "UDI": "🔗 UDI Database Entries"
     }
     
-    for key, title in sections.items():
-        if key in results:
-            display_section_with_ai_summary(title, results[key], key, query, "device")
+    # Create rows of 2 items each
+    section_items = list(sections.items())
+    
+    # Process sections in pairs
+    for i in range(0, len(section_items), 2):
+        cols = st.columns(2)
+        
+        # First column
+        if i < len(section_items) and section_items[i][0] in results:
+            key, title = section_items[i]
+            with cols[0]:
+                with st.container():
+                    display_section_with_ai_summary(title, results[key], key, query, "device")
+        
+        # Second column
+        if i+1 < len(section_items) and section_items[i+1][0] in results:
+            key, title = section_items[i+1]
+            with cols[1]:
+                with st.container():
+                    display_section_with_ai_summary(title, results[key], key, query, "device")
 
 def add_about_button():
     """Add an About button that shows the content of about.md in a modal when clicked"""
@@ -52,7 +69,7 @@ def add_about_button():
 
 
 def display_manufacturer_view(results, query):
-    """Display manufacturer-centric view of FDA data with AI summaries"""
+    """Display manufacturer-centric view of FDA data with AI summaries in side-by-side layout"""
     st.header("📈 Recent FDA Activity for this Manufacturer")
     if not results:
         st.write("No recent manufacturer-related data found.")
@@ -66,9 +83,26 @@ def display_manufacturer_view(results, query):
         "UDI": "🔗 UDI Database Entries"
     }
     
-    for key, title in sections.items():
-        if key in results:
-            display_section_with_ai_summary(title, results[key], key, query, "manufacturer")
+    # Create rows of 2 items each
+    section_items = list(sections.items())
+    
+    # Process sections in pairs
+    for i in range(0, len(section_items), 2):
+        cols = st.columns(2)
+        
+        # First column
+        if i < len(section_items) and section_items[i][0] in results:
+            key, title = section_items[i]
+            with cols[0]:
+                with st.container():
+                    display_section_with_ai_summary(title, results[key], key, query, "manufacturer")
+        
+        # Second column
+        if i+1 < len(section_items) and section_items[i+1][0] in results:
+            key, title = section_items[i+1]
+            with cols[1]:
+                with st.container():
+                    display_section_with_ai_summary(title, results[key], key, query, "manufacturer")
 
 def main():
     """Main application entry point"""
@@ -82,9 +116,10 @@ def main():
     
     # Add demo app disclaimer
     st.warning("""
-    **DEMO APP NOTICE**: This application pulls sample data from the openFDA API to demonstrate 
-    what a comprehensive regulatory intelligence system could look like. The data samples shown 
-    are limited and may not represent all relevant records or the most recent information.
+    **DEMO APP NOTICE**: This application pulls the 20 MOST RECENT records from the openFDA API to 
+    monitor recent regulatory activities. The analysis focuses on identifying key trends in recent 
+    FDA submissions, events, and recalls. This limited sample may not represent all relevant records,
+    and should be considered illustrative of real-time monitoring capabilities.
     """)
     
     query = st.text_input("Enter device name or manufacturer", 

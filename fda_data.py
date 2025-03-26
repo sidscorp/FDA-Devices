@@ -34,7 +34,7 @@ DISPLAY_COLUMNS = {
     "PMA": ["pma_number", "supplement_number", "trade_name", "generic_name", "decision_date","supplement_reason", "applicant", "product_code"],
     "CLASSIFICATION": ["device_name", "classification_name", "product_code", "device_class", "regulation_number", "medical_specialty_description"],
     "UDI": ["brand_name", "device_description", "company_name", "device_identifier", "version_or_model_number", "device_status"],
-    "RECALL": ["event_date_initiated", "recalling_firm", "product_description", "recall_classification", "reason_for_recall"],
+    "RECALL": ["event_date_initiated", "recalling_firm", "product_description", "recall_statusß", "reason_for_recall"],
     "EVENT": [
         "report_number", "event_type", "date_received", "date_of_event",
         "manufacturer_name", "product_problems", "adverse_event_flag",
@@ -43,7 +43,7 @@ DISPLAY_COLUMNS = {
     ]
 }
 
-def search_fda(query, category, source, limit=100):
+def search_fda(query, category, source, limit=20):
     """
     Search FDA database for a specific category and source
     """
@@ -54,8 +54,17 @@ def search_fda(query, category, source, limit=100):
         
     for field in SEARCH_FIELDS[category][source.lower()]:
         try:
-            params = {"search": f"{field}:{query}", "limit": limit}
-            if source.lower() != "recall":
+            formatted_query = "+".join(query.split())
+            params = {"search": f"{field}:{formatted_query}", "limit": limit}
+            if source.lower() == "event":
+                params["sort"] = "date_received:desc"
+            elif source.lower() == "recall":
+                params["sort"] = "event_date_initiated:desc"
+            elif source.lower() == "pma":
+                params["sort"] = "decision_date:desc"
+            elif source.lower() == "510k":
+                params["sort"] = "decision_date:desc"
+            else:
                 params["sort"] = "date_received:desc"
                 
             res = requests.get(url, params=params)

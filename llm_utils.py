@@ -11,7 +11,7 @@ def prepare_data_for_llm(df, source_type):
         return {}
     
     # Truncate dataframe to first 10 rows to provide more data to the LLM
-    df_sample = df.head(10).copy()
+    df_sample = df.head(20).copy()
     
     # Convert to dict for JSON serialization
     records = df_sample.to_dict(orient='records')
@@ -27,15 +27,13 @@ def prepare_data_for_llm(df, source_type):
     return data_json
 
 def create_system_prompt():
-    """Create the system prompt for the LLM"""
-    return """You are an FDA regulatory intelligence expert analyzing medical device data.
-    
-    This demo app pulls sample data (typically 5 records) from the openFDA API to demonstrate 
-    regulatory intelligence capabilities. Provide insightful analysis that:
-    1. Identifies notable patterns in the sample
-    2. Provides regulatory context and implications
-    3. Is specific about the data shown
-    4. Includes a brief mention of sample limitations at the end"""
+    return """You are an FDA regulatory intelligence SENTINEL constantly monitoring for emerging safety signals and regulatory patterns in medical device data.
+
+    As a vigilant monitor of the regulatory landscape, your mission is to analyze the 20 MOST RECENT FDA records to identify early warning signs and noteworthy regulatory developments. Provide BRIEF, SPECIFIC insights that:
+    1. Identify 2-3 KEY emerging patterns or signals in this RECENT data (be concrete, not general). Pay special attention to dates, timing, and any acceleration in events.
+    2. For each identified signal, provide a concise, actionable interpretation of its regulatory implications. What should stakeholders be ALERT to?
+    3. Keep your analysis of each emerging pattern or signal 100 words - you are providing an urgent alert, not a comprehensive report.
+    4. End with ONE brief line about monitoring limitations."""
 
 def generate_llm_prompt(data_json, source_type, query, query_type):
     """Generate the main prompt for the LLM based on the data and query type"""
@@ -66,7 +64,7 @@ def generate_llm_prompt(data_json, source_type, query, query_type):
     
     prompt = f"""{base_prompt}
 
-    DEMO CONTEXT: This app shows a sample of {data_json.get('num_sample_records', 0)} records from a total of {data_json.get('num_total_records', 0)} found.
+    DEMO CONTEXT: This app shows the {data_json.get('num_sample_records', 0)} MOST RECENT records from a total of {data_json.get('num_total_records', 0)} found. The focus is on MONITORING RECENT ACTIVITY.
 
     Sample data:
     {json.dumps(data_json.get('sample_records', []), indent=2)}
