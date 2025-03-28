@@ -6,22 +6,51 @@ import os
 from fda_data import DISPLAY_COLUMNS
 
 def prepare_data_for_llm(df, source_type):
-    """Convert a pandas DataFrame to structured JSON for LLM input"""
+    """Convert a pandas DataFrame to structured JSON for LLM input, optimized for token efficiency"""
     if df.empty:
         return {}
     
-    # Truncate dataframe to first 10 rows to provide more data to the LLM
-    df_sample = df.head(20).copy()
+    # Define essential fields per source type to reduce data volume
+    essential_fields = {
+        "510K": ["k_number", "device_name", "decision_date", "applicant"],
+        "PMA": ["pma_number", "trade_name", "decision_date", "applicant"],
+        "CLASSIFICATION": ["device_name", "device_class", "medical_specialty_description"],
+        "UDI": ["brand_name", "device_description", "company_name"],
+        "RECALL": ["event_date_initiated", "recalling_firm", "product_description", "recall_classification", "reason_for_recall"],
+        "EVENT": ["date_received", "manufacturer_name", "product_problems", "device.brand_name", "device.generic_name"]
+    }
+    
+    # Get essential fields for this source type, or use all if not specified
+    fields = essential_fields.get(source_type, df.columns.tolist())
+    
+    # Filter to only include fields that exist in the dataframe
+    available_fields = [field for field in fields if field in df.columns]
+    
+    # If no matching fields, fallback to first few columns
+    if not available_fields and len(df.columns) > 0:
+        available_fields = df.columns[:min(5, len(df.columns))].tolist()
+    
+    # Limit to first 5-10 rows (depending on source type complexity)
+    sample_size = 5 if source_type in ["RECALL", "EVENT"] else 8
+    df_sample = df.head(sample_size).copy()
+    
+    # Select only the essential columns
+    if available_fields:
+        df_sample = df_sample[available_fields]
     
     # Convert to dict for JSON serialization
     records = df_sample.to_dict(orient='records')
     
-    # Create JSON structure
+    # Create JSON structure with summary stats instead of full data
     data_json = {
         "source_type": source_type,
         "num_total_records": len(df),
         "num_sample_records": len(records),
-        "sample_records": records
+        "sample_records": records,
+        "date_range": {
+            "earliest": df["date_received"].min() if "date_received" in df.columns else None,
+            "latest": df["date_received"].max() if "date_received" in df.columns else None
+        }
     }
     
     return data_json
@@ -35,45 +64,51 @@ def create_system_prompt():
     3. Keep your analysis of each emerging pattern or signal 100 words - you are providing an urgent alert, not a comprehensive report.
     4. End with ONE brief line about monitoring limitations."""
 
-def generate_llm_prompt(data_json, source_type, query, query_type):
-    """Generate the main prompt for the LLM based on the data and query type"""
-    # Different prompt templates based on query type
-    manufacturer_templates = {
-        "510K": f"Analyze this sample of 510(k) submissions from manufacturer '{query}'. Focus on product strategy and regulatory approaches.",
-        "PMA": f"Review this sample of PMA submissions from '{query}'. Consider their high-risk device portfolio and approval pathways.",
-        "EVENT": f"Evaluate this sample of adverse events for '{query}' devices. Look for recurring issues and severity patterns.",
-        "RECALL": f"Assess this sample of recalls from '{query}'. Consider nature, severity, and quality implications.",
-        "UDI": f"Analyze this sample of UDI entries for '{query}'. Examine product types and characteristics."
+def generate_llm_prompt(data_json, source_type, query, query_type, section_results=None):
+    """Generate consistent, structured prompts for LLM analysis"""
+    # Base instructions that enforce consistent structure
+    system_instructions = create_structured_system_prompt(query_type, source_type)
+    
+    # Data-specific descriptions
+    descriptions = {
+        "manufacturer": {
+            "510K": "recent 510(k) clearance strategy and regulatory approach",
+            "PMA": "recent PMA applications for high-risk devices",
+            "EVENT": "recent adverse events reported for their devices",
+            "RECALL": "recent product recalls and corrective actions",
+            "UDI": "recent device registrations and identifiers"
+        },
+        "device": {
+            "510K": "recent regulatory clearance pathways and technological variations",
+            "PMA": "recent approval applications and clinical evidence",
+            "CLASSIFICATION": "regulatory risk classification and requirements",
+            "UDI": "device variations and manufacturer diversity",
+            "EVENT": "recent adverse event patterns and patient impacts",
+            "RECALL": "recent recall patterns and correction strategies"
+        }
     }
     
-    device_templates = {
-        "510K": f"Analyze this sample of 510(k) submissions for '{query}' devices. Consider regulatory pathways and technologies.",
-        "PMA": f"Review this sample of PMA submissions for '{query}' devices. Consider approval requirements and features.",
-        "CLASSIFICATION": f"Examine this classification data for '{query}'. Note risk classifications and regulatory requirements.",
-        "UDI": f"Analyze this sample of UDI entries for '{query}' devices. Consider variations and manufacturers.",
-        "EVENT": f"Evaluate this sample of adverse events for '{query}' devices. Look for failure patterns and patient impacts.",
-        "RECALL": f"Assess this sample of recalls for '{query}' devices. Consider issue types and corrective actions."
-    }
+    # Get the appropriate description
+    description = descriptions.get(query_type, {}).get(source_type, "recent regulatory activity")
     
-    if query_type == "manufacturer":
-        prompt_templates = manufacturer_templates
-        base_prompt = prompt_templates.get(source_type, f"Analyze this FDA data sample for manufacturer '{query}'.")
-    else:  # device
-        prompt_templates = device_templates
-        base_prompt = prompt_templates.get(source_type, f"Analyze this FDA data sample for device type '{query}'.")
-    
-    prompt = f"""{base_prompt}
-
-    DEMO CONTEXT: This app shows the {data_json.get('num_sample_records', 0)} MOST RECENT records from a total of {data_json.get('num_total_records', 0)} found. The focus is on MONITORING RECENT ACTIVITY.
+    # Create a consistent narrative prompt
+    prompt = f"""Analyze the {data_json.get('num_sample_records', 0)} MOST RECENT records about {description} for {'manufacturer' if query_type == 'manufacturer' else 'device type'} '{query}'.
 
     Sample data:
     {json.dumps(data_json.get('sample_records', []), indent=2)}
-
-    Provide informative insights about visible patterns for '{query}'. End with a brief mention of sample limitations.
     """
-    return prompt
+    
+    # Add narrative continuity if we have previous sections
+    if section_results:
+        continuity_context = maintain_narrative_continuity(section_results, source_type, query, query_type)
+        prompt = f"{prompt}\n\n{continuity_context}"
+    
+    # Complete prompt with system instructions
+    full_prompt = f"{system_instructions}\n\n{prompt}"
+    return full_prompt
 
-def run_llm_analysis(df, source_type, query, query_type="device", custom_prompt=None):
+
+def run_llm_analysis(df, source_type, query, query_type="device", custom_prompt=None, section_results=None):
     """Process data with LLM and return the generated summary"""
     try:
         # Check if API key is configured
@@ -91,9 +126,7 @@ def run_llm_analysis(df, source_type, query, query_type="device", custom_prompt=
         else:
             # Prepare data and prompts
             data_json = prepare_data_for_llm(df, source_type)
-            system_instructions = create_system_prompt()
-            prompt = generate_llm_prompt(data_json, source_type, query, query_type)
-            prompt = f"{system_instructions}\n\n{prompt}"
+            prompt = generate_llm_prompt(data_json, source_type, query, query_type, section_results)
         
         # Generate content
         model = genai.GenerativeModel("gemini-2.0-flash")
@@ -108,11 +141,22 @@ def display_section_with_ai_summary(title, df, source, query, query_type):
     st.subheader(title)
     
     if not df.empty:
-        # Generate and display AI summary
+        # Generate and display AI summary with narrative continuity
         with st.spinner("Analyzing data..."):
-            summary = run_llm_analysis(df, source, query, query_type)
+            summary = run_llm_analysis(
+                df, 
+                source, 
+                query, 
+                query_type, 
+                custom_prompt=None, 
+                section_results=st.session_state.section_results
+            )
+            # Store this section's results for future sections
+            st.session_state.section_results[source] = summary
             
-        st.info(f"**Key Insights**: {summary}")
+        # Format the summary for better display
+        formatted_summary = format_llm_summary(summary)
+        st.markdown(formatted_summary)
         
         # Display data with appropriate columns in an expander
         with st.expander("View Detailed Data"):
@@ -121,3 +165,70 @@ def display_section_with_ai_summary(title, df, source, query, query_type):
             st.dataframe(df[filtered_cols] if filtered_cols else df)
     else:
         st.info(f"No data found for {title}.")
+
+def format_llm_summary(summary):
+    """Format the LLM summary for better display in Streamlit"""
+    # Replace section titles with markdown formatting
+    formatted = summary
+    
+    if "KEY TREND:" in formatted:
+        formatted = formatted.replace("KEY TREND:", "**KEY TREND:**")
+    
+    if "REGULATORY IMPLICATIONS:" in formatted:
+        formatted = formatted.replace("REGULATORY IMPLICATIONS:", "**REGULATORY IMPLICATIONS:**")
+    
+    if "NOTABLE PATTERNS:" in formatted:
+        formatted = formatted.replace("NOTABLE PATTERNS:", "**NOTABLE PATTERNS:**")
+    
+    if "MONITORING LIMITATION:" in formatted:
+        formatted = formatted.replace("MONITORING LIMITATION:", "**MONITORING LIMITATION:**")
+    
+    # Ensure proper line breaks between sections
+    formatted = formatted.replace("\n\n", "\n\n")
+    
+    return formatted
+
+def create_structured_system_prompt(query_type, section_name):
+    """Create a system prompt with consistent structure and formatting"""
+    base_instructions = """You are an FDA regulatory intelligence SENTINEL monitoring for emerging safety signals and regulatory patterns in medical device data.
+
+    Analyze the 20 MOST RECENT FDA records to identify emerging warning signs and noteworthy developments. 
+    
+    FORMAT YOUR RESPONSE EXACTLY AS FOLLOWS WITH LINE BREAKS AFTER EACH SECTION:
+    
+    KEY TREND:
+    [1-2 sentence description of most important trend]
+    
+    REGULATORY IMPLICATIONS:
+    [1-2 sentence analysis of what this means]
+    
+    NOTABLE PATTERNS:
+    [1-2 sentence description of secondary patterns]
+    
+    MONITORING LIMITATION:
+    [1 brief sentence on data limitations]
+    
+    Keep your total response under 150 words. Be specific about dates, frequencies, and concrete observations."""
+    
+    # Add context specific to query type
+    if query_type == "manufacturer":
+        context = f"For this {section_name} analysis, focus on how this manufacturer's regulatory profile and quality systems may be evolving based on recent activity."
+    else:  # device
+        context = f"For this {section_name} analysis, focus on how this device category's safety profile and regulatory status may be changing based on recent activity."
+    
+    return f"{base_instructions}\n\n{context}"
+
+def maintain_narrative_continuity(section_results, current_section, query, query_type):
+    """Provide context from previous sections to maintain narrative continuity"""
+    # Skip if this is the first section
+    if not section_results:
+        return ""
+        
+    # Create context from previous sections
+    context_lines = []
+    for section, insights in section_results.items():
+        # Extract just the first sentence of previous insights to keep context concise
+        first_sentence = insights.split('.')[0] + '.' if '.' in insights else insights
+        context_lines.append(f"In the {section} analysis, you noted: {first_sentence}")
+    
+    return "PREVIOUS ANALYSES CONTEXT:\n" + "\n".join(context_lines)

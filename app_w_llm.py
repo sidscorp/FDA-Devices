@@ -24,6 +24,9 @@ def determine_query_type(query):
 def display_device_view(results, query):
     """Display device-centric view of FDA data with AI summaries in side-by-side layout"""
     st.header("📊 Recent FDA Activity for this Device")
+    
+    st.session_state.section_results = {}
+    
     if not results:
         st.write("No recent device-related data found.")
         return
@@ -71,6 +74,10 @@ def add_about_button():
 def display_manufacturer_view(results, query):
     """Display manufacturer-centric view of FDA data with AI summaries in side-by-side layout"""
     st.header("📈 Recent FDA Activity for this Manufacturer")
+    
+    # Clear previous section results at the beginning of a new search
+    st.session_state.section_results = {}
+    
     if not results:
         st.write("No recent manufacturer-related data found.")
         return
@@ -107,6 +114,11 @@ def display_manufacturer_view(results, query):
 def main():
     """Main application entry point"""
     st.set_page_config(page_title="FDA Device Intelligence Demo", layout="wide")
+    
+    # Initialize session state for tracking narrative
+    if 'section_results' not in st.session_state:
+        st.session_state.section_results = {}
+
     st.title("🔍 FDA Medical Device Intelligence Center")
     st.caption("""Demo developed by Dr. Sidd Nambiar, Sr. Lead Scientist at Booz Allen Hamilton.  
                   Contact: nambiar_siddhartha@bah.com""")
