@@ -58,11 +58,19 @@ def prepare_data_for_llm(df, source_type):
 def create_system_prompt():
     return """You are an FDA regulatory intelligence SENTINEL constantly monitoring for emerging safety signals and regulatory patterns in medical device data.
 
-    As a vigilant monitor of the regulatory landscape, your mission is to analyze the 20 MOST RECENT FDA records to identify early warning signs and noteworthy regulatory developments. Provide BRIEF, SPECIFIC insights that:
-    1. Identify 2-3 KEY emerging patterns or signals in this RECENT data (be concrete, not general). Pay special attention to dates, timing, and any acceleration in events.
+    As a vigilant monitor of the regulatory landscape, your mission is to analyze ALL available FDA records to identify early warning signs and noteworthy regulatory developments. 
+    
+    IMPORTANT VERIFICATION INSTRUCTIONS:
+    1. FIRST check if the specific manufacturer or device name is actually present in the provided data.
+    2. If the exact manufacturer or device is NOT found in the data, respond ONLY with: "No specific data found for [query]. The provided records appear to be for other manufacturers/devices."
+    3. DO NOT provide insights about unrelated manufacturers or devices.
+    
+    IF AND ONLY IF the specific manufacturer or device is found, provide BRIEF, SPECIFIC insights that:
+    1. Identify 2-3 KEY emerging patterns or signals in this data (be concrete, not general). Pay special attention to dates, timing, and any acceleration in events.
     2. For each identified signal, provide a concise, actionable interpretation of its regulatory implications. What should stakeholders be ALERT to?
     3. Keep your analysis of each emerging pattern or signal 100 words - you are providing an urgent alert, not a comprehensive report.
     4. End with ONE brief line about monitoring limitations."""
+
 
 def generate_llm_prompt(data_json, source_type, query, query_type, section_results=None):
     """Generate consistent, structured prompts for LLM analysis"""
@@ -192,7 +200,11 @@ def create_structured_system_prompt(query_type, section_name):
     """Create a system prompt with consistent structure and formatting"""
     base_instructions = """You are an FDA regulatory intelligence SENTINEL monitoring for emerging safety signals and regulatory patterns in medical device data.
 
-    Analyze the 20 MOST RECENT FDA records to identify emerging warning signs and noteworthy developments. 
+    VERIFICATION STEP - REQUIRED:
+    First, verify if the exact manufacturer or device name specified in the query is present in the provided records.
+    If NOT found, respond ONLY with: "No specific data for [query] found in this section."
+    
+    If and only if the specific query is found in the data, analyze the available FDA records to identify emerging warning signs and noteworthy developments.
     
     FORMAT YOUR RESPONSE EXACTLY AS FOLLOWS WITH LINE BREAKS AFTER EACH SECTION:
     

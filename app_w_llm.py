@@ -10,19 +10,41 @@ def cached_get_fda_data(query, limit=20):
     return get_fda_data(query, limit)
 
 def determine_query_type(query):
-    """Use LLM to determine if the query is for a device or manufacturer"""
-    prompt = f"""Determine if '{query}' is more likely a medical device or a manufacturer name.
-    Respond with only one word: 'device' or 'manufacturer'."""
+    """Use LLM to determine if the query is for a device or manufacturer and fix spelling"""
+    prompt = f"""For the query '{query}':
+    1. First, correct any spelling or grammatical errors
+    2. Then, determine if the corrected query is more likely a medical device or a manufacturer name
+    
+    Respond in this JSON format:
+    {{
+        "corrected_query": "the corrected spelling of the query",
+        "type": "device or manufacturer"
+    }}
+    """
     
     result = run_llm_analysis(pd.DataFrame(), "QUERY_TYPE", query, custom_prompt=prompt)
     
-    if "manufacturer" in result.lower():
-        return "manufacturer"
-    else:
-        return "device"
+    try:
+        # Parse the JSON response
+        response_data = json.loads(result)
+        corrected_query = response_data.get("corrected_query", query)
+        query_type = response_data.get("type", "device")
+        
+        # Update the query if it was corrected
+        if corrected_query != query:
+            st.info(f"Query corrected to: **{corrected_query}**")
+            
+        # Return both the corrected query and type
+        return corrected_query, query_type
+    except:
+        # Fallback to original behavior if JSON parsing fails
+        if "manufacturer" in result.lower():
+            return query, "manufacturer"
+        else:
+            return query, "device"
 
 def display_device_view(results, query):
-    """Display device-centric view of FDA data with AI summaries in side-by-side layout"""
+    """Display device-centric view of FDA data with AI summaries in single column layout"""
     st.header("📊 Recent FDA Activity for this Device")
     
     st.session_state.section_results = {}
@@ -40,26 +62,12 @@ def display_device_view(results, query):
         "UDI": "🔗 UDI Database Entries"
     }
     
-    # Create rows of 2 items each
-    section_items = list(sections.items())
-    
-    # Process sections in pairs
-    for i in range(0, len(section_items), 2):
-        cols = st.columns(2)
-        
-        # First column
-        if i < len(section_items) and section_items[i][0] in results:
-            key, title = section_items[i]
-            with cols[0]:
-                with st.container():
-                    display_section_with_ai_summary(title, results[key], key, query, "device")
-        
-        # Second column
-        if i+1 < len(section_items) and section_items[i+1][0] in results:
-            key, title = section_items[i+1]
-            with cols[1]:
-                with st.container():
-                    display_section_with_ai_summary(title, results[key], key, query, "device")
+    # Process each section in a single column layout
+    for key, title in sections.items():
+        if key in results:
+            with st.container():
+                display_section_with_ai_summary(title, results[key], key, query, "device")
+
 
 def add_about_button():
     """Add an About button that shows the content of about.md in a modal when clicked"""
@@ -72,7 +80,7 @@ def add_about_button():
 
 
 def display_manufacturer_view(results, query):
-    """Display manufacturer-centric view of FDA data with AI summaries in side-by-side layout"""
+    """Display manufacturer-centric view of FDA data with AI summaries in single column layout"""
     st.header("📈 Recent FDA Activity for this Manufacturer")
     
     # Clear previous section results at the beginning of a new search
@@ -90,26 +98,11 @@ def display_manufacturer_view(results, query):
         "UDI": "🔗 UDI Database Entries"
     }
     
-    # Create rows of 2 items each
-    section_items = list(sections.items())
-    
-    # Process sections in pairs
-    for i in range(0, len(section_items), 2):
-        cols = st.columns(2)
-        
-        # First column
-        if i < len(section_items) and section_items[i][0] in results:
-            key, title = section_items[i]
-            with cols[0]:
-                with st.container():
-                    display_section_with_ai_summary(title, results[key], key, query, "manufacturer")
-        
-        # Second column
-        if i+1 < len(section_items) and section_items[i+1][0] in results:
-            key, title = section_items[i+1]
-            with cols[1]:
-                with st.container():
-                    display_section_with_ai_summary(title, results[key], key, query, "manufacturer")
+    # Process each section in a single column layout
+    for key, title in sections.items():
+        if key in results:
+            with st.container():
+                display_section_with_ai_summary(title, results[key], key, query, "manufacturer")
 
 def main():
     """Main application entry point"""
@@ -139,12 +132,12 @@ def main():
 
     if query:
         with st.spinner("Analyzing query..."):
-            query_type = determine_query_type(query)
+            corrected_query, query_type = determine_query_type(query)
             
-        st.info(f"Retrieving FDA data sample for this {query_type}: **{query}**")
+        st.info(f"Retrieving FDA data sample for this {query_type}: **{corrected_query}**")
             
         with st.spinner("Gathering FDA data samples..."):
-            results = cached_get_fda_data(query)
+            results = cached_get_fda_data(corrected_query)
         
         # Only display the relevant view
         if query_type == "device":

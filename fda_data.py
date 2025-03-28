@@ -51,10 +51,9 @@ def search_fda(query, category, source, limit=20):
     url = FDA_ENDPOINTS.get(source.lower())
     if not url:
         return results_df
-        
+    formatted_query = "+".join(query.split())
     for field in SEARCH_FIELDS[category][source.lower()]:
         try:
-            formatted_query = "+".join(query.split())
             params = {"search": f"{field}:{formatted_query}", "limit": limit}
             if source.lower() == "event":
                 params["sort"] = "date_received:desc"
