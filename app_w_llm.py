@@ -5,9 +5,9 @@ import os
 from llm_utils import display_section_with_ai_summary, run_llm_analysis
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def cached_get_fda_data(query, limit=20):
+def cached_get_fda_data(query, query_type, limit=20):
     """Cached wrapper for the FDA data retrieval function"""
-    return get_fda_data(query, limit)
+    return get_fda_data(query,  query_type, limit)
 
 def determine_query_type(query):
     """Use LLM to determine if the query is for a device or manufacturer and fix spelling"""
@@ -137,7 +137,7 @@ def main():
         st.info(f"Retrieving FDA data sample for this {query_type}: **{corrected_query}**")
             
         with st.spinner("Gathering FDA data samples..."):
-            results = cached_get_fda_data(corrected_query)
+            results = cached_get_fda_data(corrected_query, query_type)
         
         # Only display the relevant view
         if query_type == "device":
