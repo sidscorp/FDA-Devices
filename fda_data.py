@@ -1,7 +1,9 @@
+# fda_data.py
 import requests
 import pandas as pd
 import logging
 from typing import List, Dict
+from datetime import datetime, timedelta
 
 # Constants (no changes needed)
 FDA_ENDPOINTS = {
@@ -104,7 +106,7 @@ def add_missing_columns(df: pd.DataFrame, source: str) -> pd.DataFrame:
             df[col] = None
     return df
 
-def search_fda(query: str, category: str, source: str, limit: int = 20) -> pd.DataFrame:
+def search_fda(query: str, category: str, source: str, limit: int = 100) -> pd.DataFrame:
     """Search FDA database for a specific category and source."""
 
     results_df = pd.DataFrame()
@@ -114,27 +116,49 @@ def search_fda(query: str, category: str, source: str, limit: int = 20) -> pd.Da
         return results_df
 
     formatted_query = "+".join(query.split())
-    
-    # Use the query_type to select the correct fields
     search_fields = SEARCH_FIELDS.get(category, {}).get(source.lower(), [])
-    
-    for field in search_fields:
-        params = {"search": f"{field}:{formatted_query}", "limit": limit}
-        if source.lower() in ["event", "recall", "pma", "510k"]:
-            params["sort"] = f"{'decision_date' if source.lower() in ['pma', '510k'] else 'event_date_initiated' if source.lower() == 'recall' else 'date_received'}:desc"
 
-        data = fetch_data(url, params)
-        if data:
-            df = process_results(data, source)
-            if not df.empty:
-                results_df = pd.concat([results_df, df], ignore_index=True)  # Accumulate results
-        else:
-            logging.warning(f"No results found for {source.upper()} with field {field} and query '{query}'")
+    params = {"search": f"({' OR '.join([f'{f}:{formatted_query}' for f in search_fields])})", "limit": limit}
+    if source.lower() in ["event", "recall", "pma", "510k"]:
+        date_field = None
+        if source.lower() == 'recall':
+            date_field = 'event_date_initiated'
+        elif source.lower() == 'event':
+            date_field = 'date_received'
+        elif source.lower() == 'pma' or source.lower() == '510k':
+            date_field = 'decision_date'
+        if date_field:
+            params["sort"] = f"{date_field}:desc"
+
+    data = fetch_data(url, params)
+    if data:
+        df = process_results(data, source)
+        if not df.empty:
+            results_df = pd.concat([results_df, df], ignore_index=True)  # Accumulate results
+    else:
+        logging.warning(f"No results found for {source.upper()} with fields {search_fields} and query '{query}'")
     return results_df
+
+def filter_by_date(df: pd.DataFrame, source: str) -> pd.DataFrame:
+    """Filter DataFrame to include only records from the last 6 months."""
+    date_field = None
+    if source.upper() == 'RECALL':
+        date_field = 'event_date_initiated'
+    elif source.upper() == 'EVENT':
+        date_field = 'date_received'
+    elif source.upper() == 'PMA' or source.upper() == '510K':
+        date_field = 'decision_date'
+
+    if date_field and date_field in df.columns:
+        six_months_ago = datetime.now() - timedelta(days=6 * 30)
+        df[date_field] = pd.to_datetime(df[date_field])
+        df_filtered = df[df[date_field] >= six_months_ago]
+        return df_filtered
+    return df
 
 def get_fda_data(query: str, query_type: str, limit: int = 100) -> Dict[str, Dict[str, pd.DataFrame]]:
     """Main function to get all FDA data for a query.
-    Returns a dictionary with device and manufacturer views.
+    Returns a dictionary with device and manufacturer views, filtered by date.
     """
 
     results: Dict[str, Dict[str, pd.DataFrame]] = {"device": {}, "manufacturer": {}}
@@ -147,6 +171,8 @@ def get_fda_data(query: str, query_type: str, limit: int = 100) -> Dict[str, Dic
         for source in SEARCH_FIELDS[category]:
             df = search_fda(query, category, source, limit)
             if not df.empty:
+                if source.upper() in ["RECALL", "EVENT", "PMA", "510K"]:
+                    df = filter_by_date(df, source)
                 results[category][source.upper()] = df
 
     return results
