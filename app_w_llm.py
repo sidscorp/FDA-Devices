@@ -45,7 +45,6 @@ def determine_query_type(query):
             return query, "device"
 
 def display_device_view(results, query):
-    st.header("📊 Recent FDA Activity for this Device")
     st.session_state.section_results = {}
 
     if not results:
@@ -93,7 +92,6 @@ def display_device_view(results, query):
 
 def display_manufacturer_view(results, query):
     """Display manufacturer-centric view of FDA data with AI summaries in fixed layout"""
-    st.header("📈 Recent FDA Activity for this Manufacturer")
     
     # Clear previous section results at the beginning of a new search
     st.session_state.section_results = {}

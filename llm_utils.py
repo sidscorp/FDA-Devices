@@ -127,19 +127,18 @@ def display_section_with_ai_summary(title, df, source, query, query_type):
             df, source, query, query_type, section_results=st.session_state.get('section_results', {})
         )
         st.session_state.section_results[source] = summary
+        with st.container(border=True, height=400):
+            formatted_summary = format_llm_summary(summary)
+            st.markdown(
+                f"""
+                <div style="background-color:#fff8dc; padding:20px; border-radius:10px; border:1px solid #eee; margin-bottom:1rem;">
+                    {formatted_summary}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-        formatted_summary = format_llm_summary(summary)
-        st.markdown(
-            f"""
-            <div style="background-color:#fff8dc; padding:20px; border-radius:10px; border:1px solid #eee; margin-bottom:1rem;">
-                {formatted_summary}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-    with st.expander("View Detailed Data Sample"):
-        cols_to_display = DISPLAY_COLUMNS.get(source, df.columns.tolist())
-        filtered_cols = [col for col in cols_to_display if col in df.columns]
-        st.dataframe(df[filtered_cols])
+            with st.expander("View Detailed Data Sample"):
+                cols_to_display = DISPLAY_COLUMNS.get(source, df.columns.tolist())
+                filtered_cols = [col for col in cols_to_display if col in df.columns]
+                st.dataframe(df[filtered_cols])
