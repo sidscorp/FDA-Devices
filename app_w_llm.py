@@ -121,7 +121,7 @@ def main():
     
     # Add demo app disclaimer
     st.warning("""
-    **DEMO APP NOTICE**: This application pulls the 20 MOST RECENT records from the openFDA API to 
+    **DEMO APP NOTICE**: This application pulls a few of the most recent records from the openFDA API to 
     monitor recent regulatory activities. The analysis focuses on identifying key trends in recent 
     FDA submissions, events, and recalls. This limited sample may not represent all relevant records,
     and should be considered illustrative of real-time monitoring capabilities.
