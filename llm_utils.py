@@ -128,11 +128,16 @@ def display_section_with_ai_summary(title, df, source, query, query_type):
         )
         st.session_state.section_results[source] = summary
 
-    formatted_summary = format_llm_summary(summary)
-    if "No specific data" in summary or "AI analysis unavailable" in summary or "error" in summary.lower():
-        st.warning(formatted_summary)
-    else:
-        st.markdown(formatted_summary)
+        formatted_summary = format_llm_summary(summary)
+        st.markdown(
+            f"""
+            <div style="background-color:#fff8dc; padding:20px; border-radius:10px; border:1px solid #eee; margin-bottom:1rem;">
+                {formatted_summary}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
 
     with st.expander("View Detailed Data Sample"):
         cols_to_display = DISPLAY_COLUMNS.get(source, df.columns.tolist())

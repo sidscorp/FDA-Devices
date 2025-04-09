@@ -70,6 +70,12 @@ def process_results(data: Dict, source: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     df = pd.json_normalize(data['results'], sep='.')
+    if source.lower() != "event" and 'results' in data:
+        for i, row in enumerate(data['results']):
+            if 'openfda' in row:
+                for key in ['device_class', 'regulation_number', 'medical_specialty_description']:
+                    if key in row['openfda']:
+                        df.at[i, f'openfda.{key}'] = row['openfda'][key]
 
     if source.upper() == "EVENT":
         df = process_event_data(df, data['results'])
@@ -86,6 +92,11 @@ def process_event_data(df: pd.DataFrame, results: List[Dict]) -> pd.DataFrame:
             for device_field in ['brand_name', 'generic_name', 'device_report_product_code']:
                 if device_field in result['device'][0]:
                     df.at[result_idx, f'device.{device_field}'] = result['device'][0][device_field]
+        if 'openfda' in result:
+            for key in ['device_class', 'regulation_number', 'medical_specialty_description']:
+                if key in result['openfda']:
+                    df.at[result_idx, f'openfda.{key}'] = result['openfda'][key]
+
 
         # Extract patient outcome
         if 'patient' in result and result['patient'] and len(result['patient']) > 0:
@@ -115,7 +126,10 @@ def search_fda(query: str, category: str, source: str, limit: int = 100) -> pd.D
         logging.warning(f"Invalid source: {source}")
         return results_df
 
-    formatted_query = "+".join(query.split())
+    formatted_query = query.strip().replace(" ", "+")
+    if len(formatted_query) > 3 and "*" not in formatted_query and '"' not in formatted_query:
+        formatted_query = f"{formatted_query}*"
+
     search_fields = SEARCH_FIELDS.get(category, {}).get(source.lower(), [])
 
     params = {"search": f"({' OR '.join([f'{f}:{formatted_query}' for f in search_fields])})", "limit": limit}
@@ -163,16 +177,40 @@ def get_fda_data(query: str, query_type: str, limit: int = 100) -> Dict[str, Dic
 
     results: Dict[str, Dict[str, pd.DataFrame]] = {"device": {}, "manufacturer": {}}
     setup_logging()  # Initialize logging
-
+    fei_numbers = set()
+    if query_type == "manufacturer":
+        fei_df = search_fda(query, "manufacturer", "registrationlisting", limit=1000)
+        if "registration.registration_number" in fei_df.columns:
+            fei_numbers.update(fei_df["registration.registration_number"].dropna().astype(str).unique())
+        if "openfda.fei_number" in fei_df.columns:
+            flat = fei_df["openfda.fei_number"].dropna().explode()
+            fei_numbers.update(flat.astype(str).unique())
     # Determine which categories to search based on query_type
     categories_to_search = [query_type] if query_type in SEARCH_FIELDS else list(SEARCH_FIELDS.keys())
 
     for category in categories_to_search:
         for source in SEARCH_FIELDS[category]:
             df = search_fda(query, category, source, limit)
+            if query_type == "manufacturer" and not df.empty and fei_numbers and "firm_fei_number" in df.columns:
+                df = df[df["firm_fei_number"].astype(str).isin(fei_numbers)]
+
             if not df.empty:
                 if source.upper() in ["RECALL", "EVENT", "PMA", "510K"]:
                     df = filter_by_date(df, source)
                 results[category][source.upper()] = df
 
     return results
+
+def fetch_count_trends(field: str, query: str, source: str, date_field: str = "date_received") -> pd.DataFrame:
+    url = FDA_ENDPOINTS.get(source.lower())
+    if not url:
+        return pd.DataFrame()
+    formatted_query = "+".join(query.split())
+    params = {
+        "search": f"{field}:{formatted_query}",
+        "count": f"{date_field}"
+    }
+    data = fetch_data(url, params)
+    if not data or 'results' not in data:
+        return pd.DataFrame()
+    return pd.DataFrame(data['results'])
