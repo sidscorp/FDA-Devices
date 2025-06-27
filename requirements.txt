@@ -1,4 +1,4 @@
 streamlit
 pandas
-python-dotenv
-google-generativeai
+requests>=2.32.0
+pathlib2>=2.3.7

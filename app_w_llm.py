@@ -1,14 +1,15 @@
 import streamlit as st
 import pandas as pd
-from fda_data import get_fda_data, DISPLAY_COLUMNS
+from fda_data import get_fda_data
+from config import SAMPLE_SIZE_OPTIONS, DATE_RANGE_OPTIONS, DEFAULT_SAMPLE_SIZE, DEFAULT_DATE_MONTHS
 import os
 import json
 from llm_utils import display_section_with_ai_summary, run_llm_analysis
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def cached_get_fda_data(query, query_type, limit=20):
+def cached_get_fda_data(query, query_type, limit=20, date_months=6):
     """Cached wrapper for the FDA data retrieval function"""
-    return get_fda_data(query, query_type, limit)
+    return get_fda_data(query, query_type, limit, date_months)
 
 def determine_query_type(query):
     """Use LLM to determine if the query is for a device or manufacturer and fix spelling"""
@@ -44,7 +45,7 @@ def determine_query_type(query):
         else:
             return query, "device"
 
-def display_device_view(results, query):
+def display_device_view(results, query, show_raw_data=False):
     st.session_state.section_results = {}
 
     if not results:
@@ -55,42 +56,48 @@ def display_device_view(results, query):
     with row1_col1:
   
         if "RECALL" in results:
-            display_section_with_ai_summary("🚨 Recent Recalls", results["RECALL"], "RECALL", query, "device")
+            display_section_with_ai_summary("🚨 Recent Recalls", results["RECALL"], "RECALL", query, "device", show_raw_data)
         else:
-            st.write("No recent recall data found.")
+            st.subheader("🚨 Recent Recalls")
+            st.info("No recent recall data found.")
     with row1_col2:
         if "EVENT" in results:
-            display_section_with_ai_summary("⚠️ Recent Adverse Events", results["EVENT"], "EVENT", query, "device")
+            display_section_with_ai_summary("⚠️ Recent Adverse Events", results["EVENT"], "EVENT", query, "device", show_raw_data)
         else:
-            st.write("No recent adverse event data found.")
+            st.subheader("⚠️ Recent Adverse Events")
+            st.info("No recent adverse event data found.")
 
     row2_col1, row2_col2 = st.columns(2)
     with row2_col1:
         if "PMA" in results:
-            display_section_with_ai_summary("📄 Recent PMA Submissions", results["PMA"], "PMA", query, "device")
+            display_section_with_ai_summary("📄 Recent PMA Submissions", results["PMA"], "PMA", query, "device", show_raw_data)
         else:
-            st.write("No recent PMA submission data found.")
+            st.subheader("📄 Recent PMA Submissions")
+            st.info("No recent PMA submission data found.")
     with row2_col2:
         if "510K" in results:
-            display_section_with_ai_summary("📄 Latest 510(k) Submissions", results["510K"], "510K", query, "device")
+            display_section_with_ai_summary("📄 Latest 510(k) Submissions", results["510K"], "510K", query, "device", show_raw_data)
         else:
-            st.write("No recent 510(k) submission data found.")
+            st.subheader("📄 Latest 510(k) Submissions")
+            st.info("No recent 510(k) submission data found.")
 
     row3_col1, row3_col2 = st.columns(2)
     with row3_col1:
         if "UDI" in results:
-            display_section_with_ai_summary("🔗 UDI Database Entries", results["UDI"], "UDI", query, "device")
+            display_section_with_ai_summary("🔗 UDI Database Entries", results["UDI"], "UDI", query, "device", show_raw_data)
         else:
-            st.write("No UDI database entries found.")
+            st.subheader("🔗 UDI Database Entries")
+            st.info("No UDI database entries found.")
     with row3_col2:
         if "CLASSIFICATION" in results:
-            display_section_with_ai_summary("🧪 Regulatory Classification", results["CLASSIFICATION"], "CLASSIFICATION", query, "device")
+            display_section_with_ai_summary("🧪 Regulatory Classification", results["CLASSIFICATION"], "CLASSIFICATION", query, "device", show_raw_data)
         else:
-            st.write("No classification data found.")
+            st.subheader("🧪 Regulatory Classification")
+            st.info("No classification data found.")
 
 
 
-def display_manufacturer_view(results, query):
+def display_manufacturer_view(results, query, show_raw_data=False):
     """Display manufacturer-centric view of FDA data with AI summaries in fixed layout"""
     
     # Clear previous section results at the beginning of a new search
@@ -104,49 +111,49 @@ def display_manufacturer_view(results, query):
     row1_col1, row1_col2 = st.columns(2)
     with row1_col1:
         if "RECALL" in results:
-            display_section_with_ai_summary("🚨 Recent Recalls", results["RECALL"], "RECALL", query, "manufacturer")
+            display_section_with_ai_summary("🚨 Recent Recalls", results["RECALL"], "RECALL", query, "manufacturer", show_raw_data)
         else:
             st.subheader("🚨 Recent Recalls")
-            st.write("No recent recall data found.")
+            st.info("No recent recall data found.")
     
     with row1_col2:
         if "EVENT" in results:
-            display_section_with_ai_summary("⚠️ Recent Adverse Events", results["EVENT"], "EVENT", query, "manufacturer")
+            display_section_with_ai_summary("⚠️ Recent Adverse Events", results["EVENT"], "EVENT", query, "manufacturer", show_raw_data)
         else:
             st.subheader("⚠️ Recent Adverse Events")
-            st.write("No recent adverse event data found.")
+            st.info("No recent adverse event data found.")
     
     # Row 2: PMA and 510K
     row2_col1, row2_col2 = st.columns(2)
     with row2_col1:
         if "PMA" in results:
-            display_section_with_ai_summary("📄 Recent PMA Submissions", results["PMA"], "PMA", query, "manufacturer")
+            display_section_with_ai_summary("📄 Recent PMA Submissions", results["PMA"], "PMA", query, "manufacturer", show_raw_data)
         else:
             st.subheader("📄 Recent PMA Submissions")
-            st.write("No recent PMA submission data found.")
+            st.info("No recent PMA submission data found.")
     
     with row2_col2:
         if "510K" in results:
-            display_section_with_ai_summary("📄 Latest 510(k) Submissions", results["510K"], "510K", query, "manufacturer")
+            display_section_with_ai_summary("📄 Latest 510(k) Submissions", results["510K"], "510K", query, "manufacturer", show_raw_data)
         else:
             st.subheader("📄 Latest 510(k) Submissions")
-            st.write("No recent 510(k) submission data found.")
+            st.info("No recent 510(k) submission data found.")
     
     # Row 3: UDI and Classification (Note: Manufacturer view might not have Classification data)
     row3_col1, row3_col2 = st.columns(2)
     with row3_col1:
         if "UDI" in results:
-            display_section_with_ai_summary("🔗 UDI Database Entries", results["UDI"], "UDI", query, "manufacturer")
+            display_section_with_ai_summary("🔗 UDI Database Entries", results["UDI"], "UDI", query, "manufacturer", show_raw_data)
         else:
             st.subheader("🔗 UDI Database Entries")
-            st.write("No UDI database entries found.")
+            st.info("No UDI database entries found.")
     
     with row3_col2:
         if "CLASSIFICATION" in results:
-            display_section_with_ai_summary("🧪 Regulatory Classification", results["CLASSIFICATION"], "CLASSIFICATION", query, "manufacturer")
+            display_section_with_ai_summary("🧪 Regulatory Classification", results["CLASSIFICATION"], "CLASSIFICATION", query, "manufacturer", show_raw_data)
         else:
             st.subheader("🧪 Regulatory Classification")
-            st.write("No classification data found.")
+            st.info("No classification data found.")
 
 def add_about_button():
     """Add an About button that shows the content of about.md in a modal when clicked"""
@@ -160,8 +167,13 @@ def main():
     """Main application entry point"""
     st.set_page_config(page_title="FDA Device Intelligence", layout="wide")
 
-    st.markdown("## 🔍 FDA Medical Device Intelligence Center")
+    st.markdown("## 🔍 FDA Data Explorer")
     st.caption("Developed by Dr. Sidd Nambiar · Sr. Lead Scientist @ Booz Allen Hamilton")
+    
+    st.error("""
+    ⚠️ **UNOFFICIAL TOOL**: This is an independent research demo and is NOT affiliated with, endorsed by, 
+    or representing the U.S. Food and Drug Administration. All data comes from the public openFDA API.
+    """)
 
     st.markdown("""
     <div style='font-size: 0.9rem; color: gray; margin-bottom: 1rem;'>
@@ -171,11 +183,19 @@ def main():
 
     add_about_button()
 
-    st.warning("""
-    **DEMO APP NOTICE**: This application pulls a few of the most recent records from the openFDA API to 
-    monitor recent regulatory activities. The analysis focuses on identifying key trends in recent 
-    FDA submissions, events, and recalls. This limited sample may not represent all relevant records,
-    and should be considered illustrative of real-time monitoring capabilities.
+    with st.expander("⚙️ Configuration", expanded=False):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            sample_size = st.selectbox("Sample Size", SAMPLE_SIZE_OPTIONS, index=0)
+        with col2:
+            date_range = st.selectbox("Date Range (months)", DATE_RANGE_OPTIONS, index=1)
+        with col3:
+            show_raw_data = st.checkbox("Show Raw Data", value=False)
+            
+    st.info("""
+    **Sample-Based Analysis**: This tool analyzes recent samples from openFDA data to provide 
+    narrative summaries of regulatory activity patterns. Results are illustrative of the data 
+    available and should not be considered comprehensive regulatory intelligence.
     """)
 
     query = st.text_input("Enter device name or manufacturer", 
@@ -189,28 +209,34 @@ def main():
         st.info(f"Retrieving FDA data sample for this {query_type}: **{corrected_query}**")
             
         with st.spinner("Gathering FDA data samples..."):
-            results = cached_get_fda_data(corrected_query, query_type)
+            results = cached_get_fda_data(corrected_query, query_type, sample_size, date_range)
         
-        # Only display the relevant view
         if query_type == "device":
-            display_device_view(results.get("device"), query)
+            display_device_view(results.get("device"), query, show_raw_data)
         else:
-            display_manufacturer_view(results.get("manufacturer"), query)
+            display_manufacturer_view(results.get("manufacturer"), query, show_raw_data)
 
-        # Add sample size explanation
-        st.caption("""
-        Note: Each section shows a sample of available data. AI insights are based on these samples 
-        and should be considered illustrative of what a more comprehensive analysis could reveal.
+        st.caption(f"""
+        📊 **Analysis Summary**: Analyzed {sample_size} records per section from the last {date_range} months. 
+        AI insights provide narrative summaries of patterns in the sample data.
         """)
 
-        # Debug information (optional)
-        with st.expander("Developer Information"):
-            st.write("Data structure information")
+        with st.expander("🔍 Developer Information"):
             for view, tables in results.items():
                 if view == query_type:
-                    st.write(f"=== {view.upper()} VIEW ===")
+                    st.write(f"**{view.upper()} VIEW DATA**")
                     for source, df in tables.items():
-                        st.write(f"{source} columns:", list(df.columns))
+                        st.write(f"- {source}: {len(df)} records, {len(df.columns)} fields")
+                        if not df.empty:
+                            date_col = next((col for col in ["date_received", "decision_date", "event_date_initiated"] if col in df.columns), None)
+                            if date_col:
+                                min_date = pd.to_datetime(df[date_col]).min().strftime('%Y-%m-%d')
+                                max_date = pd.to_datetime(df[date_col]).max().strftime('%Y-%m-%d')
+                                st.write(f"  Date range: {min_date} to {max_date}")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        st.error(f"Application error: {str(e)}")
+        st.stop()

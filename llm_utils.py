@@ -1,10 +1,9 @@
 import json
 import streamlit as st
-import google.generativeai as genai
 import os
 import pandas as pd
-from dotenv import load_dotenv
-from fda_data import DISPLAY_COLUMNS
+from openrouter_api import OpenRouterAPI
+from config import DISPLAY_COLUMNS
 
 def prepare_data_for_llm(df, source_type):
     if df.empty:
@@ -76,13 +75,7 @@ Sample Records:
 
 def run_llm_analysis(df, source_type, query, query_type="device", custom_prompt=None, section_results=None):
     try:
-        if not hasattr(genai, 'configured') or not genai.configured:
-            load_dotenv()
-            api_key = os.getenv('GOOGLE_API_KEY')
-            if api_key:
-                genai.configure(api_key=api_key)
-            else:
-                return "AI analysis unavailable: API key not configured."
+        api = OpenRouterAPI()
 
         is_simple = source_type in ["UDI", "CLASSIFICATION"]
 
@@ -98,13 +91,19 @@ def run_llm_analysis(df, source_type, query, query_type="device", custom_prompt=
             system = create_structured_system_prompt(query_type, source_type, is_simple)
             prompt = f"{system}\n\n{generate_llm_prompt(data_json, source_type, query, query_type, is_simple, section_results)}"
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
-        if not response.parts:
-            return "AI analysis could not be completed."
-        return response.text.strip()
+        messages = [{"role": "user", "content": prompt}]
+        result = api.chat_with_fallback(messages, max_tokens=800, temperature=0.3, preferred_free=True)
+        
+        if result['success']:
+            return result['response'].strip()
+        else:
+            return f"AI analysis unavailable: {result['error'][:100]}..."
+    except ValueError as e:
+        if "API key not found" in str(e):
+            return "AI analysis unavailable: OpenRouter API key not configured. Add OPENROUTER_API_KEY to environment or api_keys.env file."
+        return f"AI analysis unavailable: {str(e)[:100]}..."
     except Exception as e:
-        return f"LLM error: {str(e)}"
+        return f"AI analysis unavailable: {str(e)[:100]}..."
 
 def format_llm_summary(summary):
     headers = ["MAIN OBSERVATION:", "WHAT THIS MIGHT MEAN:", "OTHER DETAILS:", "IMPORTANT NOTE:"]
@@ -115,7 +114,7 @@ def format_llm_summary(summary):
         return f"*{summary}*"
     return summary
 
-def display_section_with_ai_summary(title, df, source, query, query_type):
+def display_section_with_ai_summary(title, df, source, query, query_type, show_raw_data=False):
     st.subheader(title)
     if df.empty:
         st.info(f"No data found for {title}.")
@@ -138,7 +137,13 @@ def display_section_with_ai_summary(title, df, source, query, query_type):
                 unsafe_allow_html=True
             )
 
-            with st.expander("View Detailed Data Sample"):
-                cols_to_display = DISPLAY_COLUMNS.get(source, df.columns.tolist())
-                filtered_cols = [col for col in cols_to_display if col in df.columns]
-                st.dataframe(df[filtered_cols])
+            if show_raw_data:
+                with st.expander("View Detailed Data Sample", expanded=True):
+                    cols_to_display = DISPLAY_COLUMNS.get(source, df.columns.tolist())
+                    filtered_cols = [col for col in cols_to_display if col in df.columns]
+                    st.dataframe(df[filtered_cols], use_container_width=True)
+            else:
+                with st.expander("View Detailed Data Sample"):
+                    cols_to_display = DISPLAY_COLUMNS.get(source, df.columns.tolist())
+                    filtered_cols = [col for col in cols_to_display if col in df.columns]
+                    st.dataframe(df[filtered_cols], use_container_width=True)

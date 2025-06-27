@@ -56,11 +56,17 @@ def setup_logging():
 def fetch_data(url: str, params: Dict) -> Dict | None:
     """Fetch data from the given URL with the specified parameters."""
     try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
         return response.json()
+    except requests.exceptions.Timeout:
+        logging.error(f"Request to {url} timed out")
+        return None
     except requests.exceptions.RequestException as e:
         logging.error(f"Request to {url} failed: {e}")
+        return None
+    except ValueError as e:
+        logging.error(f"Invalid JSON response from {url}: {e}")
         return None
 
 def process_results(data: Dict, source: str) -> pd.DataFrame:
@@ -153,8 +159,8 @@ def search_fda(query: str, category: str, source: str, limit: int = 100) -> pd.D
         logging.warning(f"No results found for {source.upper()} with fields {search_fields} and query '{query}'")
     return results_df
 
-def filter_by_date(df: pd.DataFrame, source: str) -> pd.DataFrame:
-    """Filter DataFrame to include only records from the last 6 months."""
+def filter_by_date(df: pd.DataFrame, source: str, months: int = 6) -> pd.DataFrame:
+    """Filter DataFrame to include only records from the last N months."""
     date_field = None
     if source.upper() == 'RECALL':
         date_field = 'event_date_initiated'
@@ -164,13 +170,13 @@ def filter_by_date(df: pd.DataFrame, source: str) -> pd.DataFrame:
         date_field = 'decision_date'
 
     if date_field and date_field in df.columns:
-        six_months_ago = datetime.now() - timedelta(days=6 * 30)
-        df[date_field] = pd.to_datetime(df[date_field])
-        df_filtered = df[df[date_field] >= six_months_ago]
+        cutoff_date = datetime.now() - timedelta(days=months * 30)
+        df[date_field] = pd.to_datetime(df[date_field], errors='coerce')
+        df_filtered = df[df[date_field] >= cutoff_date]
         return df_filtered
     return df
 
-def get_fda_data(query: str, query_type: str, limit: int = 100) -> Dict[str, Dict[str, pd.DataFrame]]:
+def get_fda_data(query: str, query_type: str, limit: int = 100, date_months: int = 6) -> Dict[str, Dict[str, pd.DataFrame]]:
     """Main function to get all FDA data for a query.
     Returns a dictionary with device and manufacturer views, filtered by date.
     """
@@ -196,7 +202,7 @@ def get_fda_data(query: str, query_type: str, limit: int = 100) -> Dict[str, Dic
 
             if not df.empty:
                 if source.upper() in ["RECALL", "EVENT", "PMA", "510K"]:
-                    df = filter_by_date(df, source)
+                    df = filter_by_date(df, source, date_months)
                 results[category][source.upper()] = df
 
     return results
